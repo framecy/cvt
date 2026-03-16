@@ -210,3 +210,10 @@ deno run -A https://raw.githubusercontent.com/zsokami/cvt/main/scripts/cvt.ts [-
 ```sh
 deno run -A https://raw.githubusercontent.com/zsokami/cvt/main/scripts/cvt.ts -o clash.yaml 'https://example.com/subscribe?token=xxx'
 ```
+
+## 新增特性 (Custom Enhancements)
+
+- **远程规则支持**: 后端支持 `rules` 参数，支持注入远程 MRS/YAML 规则集。
+- **智能规则注入**: 自动解析远程链接并生成 Clash 的 `rule-providers` 与 `RULE-SET` 策略。
+- **策略组绑定**: 远程规则自动映射到 `✈️ ‍起飞` 代理分组，实现自动化分流功能。
+- **稳定性增强**: 修复了订阅暂无节点时返回 404 的问题，确保始终返回有效的 Clash 基础配置文件。
