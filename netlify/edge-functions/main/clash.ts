@@ -877,6 +877,9 @@ export function toClash(
   counts?: [number, number, number],
   count_unsupported?: Record<string, number>,
   errors?: string[],
+  dns = true,
+  tun = true,
+  rules?: string,
 ): string {
   if (proxiesOnly) {
     // 保留 hidden
@@ -900,6 +903,101 @@ export function toClash(
     'external-controller: :9090\n',
     'unified-delay: true\n',
     'tcp-concurrent: true\n',
+    'geodata-mode: true\n',
+    'geo-auto-update: true\n',
+    'geo-update-interval: 24\n',
+    'find-process-mode: strict\n',
+    'global-client-fingerprint: chrome\n',
+    '\n',
+    ...tun
+      ? [
+        'tun:\n',
+        '  enable: true\n',
+        '  stack: mixed\n',
+        '  auto-route: true\n',
+        '  auto-detect-interface: true\n',
+        '  dns-hijack:\n',
+        '    - any:53\n',
+        '\n',
+      ]
+      : [],
+    ...dns
+      ? [
+        'dns:\n',
+        '  enable: true\n',
+        '  listen: :1053\n',
+        '  ipv6: true\n',
+        '  enhanced-mode: fake-ip\n',
+        '  fake-ip-range: 198.18.0.1/16\n',
+        '  fake-ip-filter:\n',
+        '    - "*.lan"\n',
+        '    - "*.local"\n',
+        '    - "*.localhost"\n',
+        '    - "*.direct"\n',
+        '    - "+.msftconnecttest.com"\n',
+        '    - "+.msftncsi.com"\n',
+        '    - "+.srv.nintendo.net"\n',
+        '    - "WORKGROUP"\n',
+        '    - "+.stun.*.*"\n',
+        '    - "+.stun.*.*.*"\n',
+        '    - "+._stun.*.*"\n',
+        '    - "lens.l.google.com"\n',
+        '    - "+.ntp.org"\n',
+        '    - "+.pool.ntp.org"\n',
+        '    - "time.*.com"\n',
+        '    - "time.*.gov"\n',
+        '    - "time.*.edu.cn"\n',
+        '    - "time.*.apple.com"\n',
+        '    - "ntp.*.com"\n',
+        '    - "ntp*.*.com"\n',
+        '    - "+.time.edu.cn"\n',
+        '    - "+.ntp.org.cn"\n',
+        '    - "+.pool.ntp.org"\n',
+        '  default-nameserver:\n',
+        '    - 223.5.5.5\n',
+        '    - 119.29.29.29\n',
+        '    - 1.1.1.1\n',
+        '  proxy-server-nameserver:\n',
+        '    - https://dns.alidns.com/dns-query\n',
+        '    - https://doh.pub/dns-query\n',
+        '  nameserver:\n',
+        '    - https://dns.alidns.com/dns-query\n',
+        '    - https://doh.pub/dns-query\n',
+        '  fallback:\n',
+        '    - https://dns.google/dns-query\n',
+        '    - https://cloudflare-dns.com/dns-query\n',
+        '    - https://dns.quad9.net/dns-query\n',
+        '  fallback-filter:\n',
+        '    geoip: true\n',
+        '    geoip-code: CN\n',
+        '    geosite:\n',
+        '      - geosite:geolocation-!cn\n',
+        '    ipcidr:\n',
+        '      - 240.0.0.0/4\n',
+        '    domain:\n',
+        '      - "+.google.com"\n',
+        '      - "+.google.co.jp"\n',
+        '      - "+.googleapis.com"\n',
+        '      - "+.googlevideo.com"\n',
+        '      - "+.gstatic.com"\n',
+        '      - "+.youtube.com"\n',
+        '      - "+.facebook.com"\n',
+        '      - "+.twitter.com"\n',
+        '      - "+.x.com"\n',
+        '      - "+.github.com"\n',
+        '      - "+.githubusercontent.com"\n',
+        '      - "+.telegram.org"\n',
+        '      - "+.t.me"\n',
+        '  nameserver-policy:\n',
+        '    "geosite:private,cn":\n',
+        '      - https://dns.alidns.com/dns-query\n',
+        '      - https://doh.pub/dns-query\n',
+        '    "geosite:geolocation-!cn":\n',
+        '      - https://dns.google/dns-query\n',
+        '      - https://cloudflare-dns.com/dns-query\n',
+        '\n',
+      ]
+      : [],
     ...counts
       ? [
         ...counts[2] > counts[1]
@@ -920,8 +1018,43 @@ export function toClash(
       : [],
     'proxies:\n',
     ...proxies.map((x) => `- ${JSON.stringify(x)}\n`),
+    ...rules
+      ? (() => {
+        const ruleLines = rules.split(/[|\n]/).map((x) => x.trim()).filter(Boolean)
+        if (ruleLines.length === 0) return []
+        const providers: string[] = ['\nrule-providers:\n']
+        for (let i = 0; i < ruleLines.length; i++) {
+          const url = ruleLines[i]
+          const name = `ruleset_${i}`
+          providers.push(`  ${name}:\n`)
+          providers.push(`    type: http\n`)
+          providers.push(`    behavior: classical\n`)
+          providers.push(`    url: "${url}"\n`)
+          providers.push(`    path: ./rulesets/${name}.yaml\n`)
+          providers.push(`    interval: 86400\n`)
+        }
+        return providers
+      })()
+      : [],
     'proxy-groups:\n',
     ...genProxyGroups(nonHiddenProxies, meta).map((x) => `- ${JSON.stringify(x)}\n`),
-    ...!ndl ? [RULES] : [RULES.slice(0, -18), ',no-resolve', RULES.slice(-18)],
+    '\n',
+    ...(() => {
+      let r = !ndl ? RULES : RULES.slice(0, -18) + ',no-resolve' + RULES.slice(-18)
+      if (rules) {
+        const ruleLines = rules.split(/[|\n]/).map((x) => x.trim()).filter(Boolean)
+        if (ruleLines.length > 0) {
+          const ruleSets = ruleLines.map((_, i) => `- RULE-SET,ruleset_${i},✈️ ‍起飞\n`).join('')
+          // Insert after local bypasses
+          const matchString = '- IP-CIDR,198.18.0.0/16,DIRECT,no-resolve'
+          if (r.includes(matchString)) {
+            r = r.replace(matchString, matchString + '\n' + ruleSets.trim())
+          } else {
+            r = r.replace('rules:\n', 'rules:\n' + ruleSets)
+          }
+        }
+      }
+      return [r]
+    })(),
   ].join('')
 }

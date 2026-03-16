@@ -36,6 +36,9 @@ async function main(req: Request) {
       hide: args['hide'],
       meta: parseBool(args['meta']),
       proxy: args['proxy'],
+      dns: parseBool(args['dns']),
+      tun: parseBool(args['tun']),
+      rules: args['rules'],
     },
   )
 

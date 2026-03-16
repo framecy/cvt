@@ -42,6 +42,9 @@ function to(
   counts?: [number, number, number],
   count_unsupported?: Record<string, number>,
   errors?: string[],
+  dns?: boolean,
+  tun?: boolean,
+  rules?: string,
 ): string {
   try {
     switch (target) {
@@ -56,6 +59,9 @@ function to(
           counts,
           count_unsupported,
           errors,
+          dns,
+          tun,
+          rules,
         )
       case 'uri':
         return toURIs(proxies)
@@ -203,13 +209,16 @@ function renameDuplicates(nodes: Node[]): Node[] {
 export async function cvt(
   _from: string,
   _to: string = 'clash',
-  { ua, ndl, filter: filterExpr, hide, meta, proxy }: {
+  { ua, ndl, filter: filterExpr, hide, meta, proxy, dns, tun, rules }: {
     ua?: string
     ndl?: boolean
     filter?: string
     hide?: string
     meta?: boolean
     proxy?: string
+    dns?: boolean
+    tun?: boolean
+    rules?: string
   } = {},
 ): Promise<[string, [number, number, number], Headers | undefined]> {
   ua ||= 'ClashMetaForAndroid/2.11.18.Meta'
@@ -332,9 +341,9 @@ export async function cvt(
   })
   const counts = [proxies.length, count_before_filter, total] as [number, number, number]
   const result: [string, [number, number, number], Headers | undefined] = [
-    proxies.length === 0 && _from !== 'empty'
-      ? errors.length ? `订阅转换失败：${errors.length === 1 ? errors[0] : '\n' + errors.join('\n')}` : ''
-      : to(proxies, _to, meta, ndl, hide, counts, count_unsupported, errors),
+    errors.length && proxies.length === 0 && _from !== 'empty'
+      ? `订阅转换失败：${errors.length === 1 ? errors[0] : '\n' + errors.join('\n')}`
+      : to(proxies, _to, meta, ndl, hide, counts, count_unsupported, errors, dns, tun, rules),
     counts,
     subinfo_headers.length === 1
       ? subinfo_headers[0]
